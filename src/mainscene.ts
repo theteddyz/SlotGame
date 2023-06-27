@@ -1,11 +1,11 @@
 import Phaser from "phaser"
 import { Reel } from "./reel"
-import { outcomeController } from "./outcomeController"
+import { OutcomeController } from "./outcomeController"
 import { symbolData } from './SymbolData'
 
 class MainScene extends Phaser.Scene {
     private reel: Reel[] = []
-    private outcomeController: outcomeController
+    private outcomeController: OutcomeController
     private outcomeText: Phaser.GameObjects.Text
     private winlines: Phaser.GameObjects.Graphics
     private playerCredits: number = 100
@@ -46,7 +46,7 @@ class MainScene extends Phaser.Scene {
         this.creditText = this.add.text(10, 50, `Credits: ${this.playerCredits}`, { font: '20px Arial', color: '#ffffff' })
         this.betText = this.add.text(10, 70, `Bet Amount: ${this.betAmount}`, { font: '20px Arial', color: '#ffffff' })
         this.winText = this.add.text(10, 90, `Last Win: ${this.finalwin}`, { font: '20px Arial', color: '#ffffff' })
-        this.outcomeController = new outcomeController(symbolData)
+        this.outcomeController = new OutcomeController(symbolData)
         this.outcomeText = this.add.text(10, 10, '', { font: '20px Arial', color: '#ffffff' })
         
         const spinButton = this.add.image(this.cameras.main.centerX + 220, this.cameras.main.height - 100, 'spinButton').setInteractive().setName('spinButton')
