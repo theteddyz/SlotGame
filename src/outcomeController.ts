@@ -1,3 +1,4 @@
+import Phaser from "phaser"
 export class outcomeController {
     private weightedSymbols: { key: string, threevalue: number, fourvalue: number, spawnChance:number }[] = []
 
