@@ -1,13 +1,13 @@
 import Phaser from "phaser"
 import { Reel } from "./reel"
 import { outcomeController } from "./outcomeController"
-import { symbolData } from './SymbolData' // Add this import
+import { symbolData } from './SymbolData'
 
 class MainScene extends Phaser.Scene {
     private reel: Reel[] = []
     private outcomeController: outcomeController
     private outcomeText: Phaser.GameObjects.Text
-    private graphics: Phaser.GameObjects.Graphics
+    private winlines: Phaser.GameObjects.Graphics
     private playerCredits: number = 100
     private betAmount: number = 10
     private finalwin: number = 0
@@ -15,8 +15,8 @@ class MainScene extends Phaser.Scene {
     private betText:Phaser.GameObjects.Text
     private winText:Phaser.GameObjects.Text
     private maxBetAmount: number = 200
-    private winOutcome: [number, number][][] = [];  // Add this member to store win outcome
-    private spinOutcome: { key: string, threevalue: number, fourvalue: number }[][];  // Add this member to store spin outcome
+    private winOutcome: [number, number][][] = []  
+    private spinOutcome: { key: string, threevalue: number, fourvalue: number }[][]  
 
     constructor() {
         super({
@@ -25,7 +25,6 @@ class MainScene extends Phaser.Scene {
     }
 
     preload() {
-        // Load images
         symbolData.forEach(symbol => {
             this.load.image(symbol.key, `assets/${symbol.key}.png`)
             this.load.image('spinButton', 'assets/spinButton.png')
@@ -54,8 +53,8 @@ class MainScene extends Phaser.Scene {
         spinButton.setScale(.2)  
     
         
-        this.graphics = this.add.graphics({ lineStyle: { color: 0x00ff00 } }) 
-        spinButton.on('pointerdown', () => this.spinReels());
+        this.winlines = this.add.graphics({ lineStyle: { color: 0x00ff00 } }) 
+        spinButton.on('pointerdown', () => this.spinReels())
     
         const increaseBetButton = this.add.text(100, 650, 'Increase Bet', { font: '20px Arial', color: '#ffffff' }).setInteractive()
         increaseBetButton.on('pointerdown', () => {
@@ -63,13 +62,13 @@ class MainScene extends Phaser.Scene {
                 this.betAmount += 5
             }
             this.betText.setText(`Bet Amount: ${this.betAmount}`)
-        });
+        })
     
         const decreaseBetButton = this.add.text(250, 650, 'Decrease Bet', { font: '20px Arial', color: '#ffffff' }).setInteractive()
         decreaseBetButton.on('pointerdown', () => {
             this.betAmount = Math.max(this.betAmount - 5, 5)
             this.betText.setText(`Bet Amount: ${this.betAmount}`)
-        });
+        })
     }
     
     
@@ -78,9 +77,9 @@ class MainScene extends Phaser.Scene {
 
     spinReels() {
         if (this.playerCredits < this.betAmount) {
-            return;
+            return
         }
-        this.graphics.clear
+        this.winlines.clear
         this.prepareToSpin()
         .then(() => this.spin())
         .then(outcome => this.checkOutcome(outcome))
@@ -88,44 +87,119 @@ class MainScene extends Phaser.Scene {
         .then(() => this.endSpin())
         .catch(error => console.error(error))
     }
+
+
+
+    prepareToSpin() {
+        return new Promise<void>((resolve) => {                
+            const spinButton = this.children.getByName('spinButton') as Phaser.GameObjects.Image
+            spinButton.disableInteractive()
+            this.winlines.clear()
+            this.outcomeText.visible = false
+            this.playerCredits -= this.betAmount
+            this.creditText.setText(`Credits: ${this.playerCredits}`)
+            resolve()
+        })
+    }
+
+
+    async spin() {
+        let outcome = this.outcomeController.generateOutcome(4, 3)
     
+        console.log('Generated outcome:', outcome)
+        this.spinOutcome = outcome
+    
+        let spinPromises: Promise<void>[] = []
+    
+        for (let index = 0; index < this.reel.length; index++) {
+            console.log(`Setting symbols for reel ${index}:`, outcome[index])
+            this.reel[index].setSymbols(outcome[index].map(symbol => symbol.key))
+    
+            const stopDelay = index * 4 
+            let spinPromise = this.reel[index].spin(stopDelay)
+            spinPromises.push(spinPromise)
+        }
+    
+        for (let spinPromise of spinPromises) {
+            await spinPromise
+        }
+    
+        return outcome
+    }
+
+
+    checkOutcome(outcome) {
+        console.log('Checking outcome:', outcome)
+        this.winOutcome = this.checkWin(outcome)
+        console.log('Win outcome:', this.winOutcome)
+        return Promise.resolve(this.winOutcome)
+    }
+
+
+    checkWin(outcome: { key: string, threevalue: number, fourvalue: number}[][]): [number, number][][] {
+        if (!outcome || !Array.isArray(outcome) || !outcome[0] || !Array.isArray(outcome[0])) {
+            console.error('Invalid outcome:', outcome)
+            return []
+        }
+    
+        let winPositions: [number, number][][] = []
+        let checkSymbol = (symbolKey: string, symbol: { key: string, threevalue: number, fourvalue: number }) => 
+            symbol.key === symbolKey || symbol.key === 'wild'
+    
+        for (let i = 0; i < outcome[0].length; i++) {
+            for (let j = 0; j < outcome[1].length; j++) {
+                if (checkSymbol(outcome[0][i].key, outcome[1][j])) {
+                    for (let k = 0; k < outcome[2].length; k++) {
+                        if (checkSymbol(outcome[0][i].key, outcome[2][k])) {
+                            winPositions.push([[0, i], [1, j], [2, k]]);
+                            for (let l = 0; l < outcome[3].length; l++) {
+                                if (checkSymbol(outcome[0][i].key, outcome[3][l])) {
+                                    winPositions.push([[0, i], [1, j], [2, k], [3, l]]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return winPositions
+    }
 
     calculateLineWins(winPositions: [number, number][][]): number[] {
         return winPositions.map(winLine => {
-            let nonWildSymbolKey = this.getFirstNonWildSymbolKey(winLine);
-            let winningSymbol = symbolData.find(symbol => symbol.key === nonWildSymbolKey);
-            return this.calculateSingleLineWin(winningSymbol || {key: '', threevalue: 0, fourvalue: 0}, winLine);
-        });
+            let nonWildSymbolKey = this.getFirstNonWildSymbolKey(winLine)
+            let winningSymbol = symbolData.find(symbol => symbol.key === nonWildSymbolKey)
+            return this.calculateSingleLineWin(winningSymbol || {key: '', threevalue: 0, fourvalue: 0}, winLine)
+        })
     }
 
 
     getFirstNonWildSymbolKey(winLine: [number, number][]) {
         for (let [reelIndex, symbolIndex] of winLine) {
-            let symbolKey = this.reel[reelIndex].symbols[symbolIndex].key;
+            let symbolKey = this.reel[reelIndex].symbols[symbolIndex].key
             if (symbolKey !== 'wild') {
-                return symbolKey;
+                return symbolKey
             }
         }
-        return '';
+        return ''
     }
 
 
     calculateSingleLineWin(winningSymbol: { key: string, threevalue: number, fourvalue: number }, winLine: [number, number][]): number {
-        let lineWin = this.betAmount * winningSymbol.threevalue;
+        let lineWin = this.betAmount * winningSymbol.threevalue
         if (winLine.length === 4) {
-            // Assume you have symbolWinValues mapping symbols to their respective win values for 4 symbol win
-            lineWin = this.betAmount * winningSymbol.fourvalue;
+            lineWin = this.betAmount * winningSymbol.fourvalue
         }
         if (this.containsWild(winLine)) {
-            return lineWin * 2;
+            return lineWin * 2
         }
-        return lineWin;
+        return lineWin
     }
     
     
 
     containsWild(winLine: [number, number][]) {
-        return winLine.some(([i, j]) => this.reel[i].symbols[j].key === 'wild');
+        return winLine.some(([i, j]) => this.reel[i].symbols[j].key === 'wild')
     }
     
 
@@ -138,118 +212,63 @@ class MainScene extends Phaser.Scene {
         }
 
 
-        prepareToSpin() {
-            return new Promise<void>((resolve) => {                
-                const spinButton = this.children.getByName('spinButton') as Phaser.GameObjects.Image;
-                spinButton.disableInteractive();
-                this.graphics.clear();
-                this.outcomeText.visible = false;
-                this.playerCredits -= this.betAmount;
-                this.creditText.setText(`Credits: ${this.playerCredits}`);
-                resolve();
+    evaluateSpinOutcome(winPositions) {
+        return new Promise<void>((resolve) => { 
+            if (winPositions.length > 0) {
+                this.calculateWinAndDisplayResult(this.spinOutcome, this.children.getByName('spinButton') as Phaser.GameObjects.Image)  
+                resolve()  
+            } else {
+                resolve()
+            }
+        })
+    }
+
+    calculateWinAndDisplayResult(outcome: { key: string, threevalue: number, fourvalue: number }[][], spinButton: Phaser.GameObjects.Image) {
+        let winPositions = this.checkWin(outcome)
+        if (winPositions.length > 0) {
+            this.finalwin = 0
+            let lineWins = this.calculateLineWins(winPositions)
+            let totalWin = lineWins.reduce((a, b) => a + b, 0)
+            this.playerCredits += totalWin
+            this.finalwin += totalWin
+            this.creditText.setText(`Credits: ${this.playerCredits}`)
+            this.winText.setText(`Last Win: ${this.finalwin}`)
+            this.showWinText(totalWin)
+            this.time.delayedCall(500, () => {
+                winPositions.forEach(winLine => {
+                    this.drawLine(winLine)
+                })
             })
         }
+        
+    }
+    
 
-        async spin() {
-            let outcome = this.outcomeController.generateOutcome(4, 3);
-        
-            console.log('Generated outcome:', outcome);
-            this.spinOutcome = outcome;
-        
-            // Prepare promises for each reel spin
-            let spinPromises: Promise<void>[] = [];
-        
-            for (let index = 0; index < this.reel.length; index++) {
-                console.log(`Setting symbols for reel ${index}:`, outcome[index]);
-                this.reel[index].setSymbols(outcome[index].map(symbol => symbol.key));
-        
-                const stopDelay = index * 4; 
-                let spinPromise = this.reel[index].spin(stopDelay);
-                spinPromises.push(spinPromise);
-            }
-        
-            // Wait for each reel to stop one-by-one
-            for (let spinPromise of spinPromises) {
-                await spinPromise;
-            }
-        
-            return outcome;
-        }
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        checkOutcome(outcome) {
-            console.log('Checking outcome:', outcome);
-            this.winOutcome = this.checkWin(outcome);
-            console.log('Win outcome:', this.winOutcome);
-            return Promise.resolve(this.winOutcome);
-        }
-        
+    
 
-
-        evaluateSpinOutcome(winPositions) {
-            return new Promise<void>((resolve) => { 
-                if (winPositions.length > 0) {
-                    this.calculateWinAndDisplayResult(this.spinOutcome, this.children.getByName('spinButton') as Phaser.GameObjects.Image);  
-                    resolve();  
-                } else {
-                    resolve();
-                }
-            })
-        }
-
+        
 
         endSpin() {
             return new Promise<void>((resolve) => {
-                const spinButton = this.children.getByName('spinButton') as Phaser.GameObjects.Image;
+                const spinButton = this.children.getByName('spinButton') as Phaser.GameObjects.Image
                 setTimeout(() => {
-                    spinButton.setInteractive();
-                    resolve();
-                }, 500);
+                    spinButton.setInteractive()
+                    resolve()
+                }, 500)
             })
         }
         
 
-
-
-    
-        calculateWinAndDisplayResult(outcome: { key: string, threevalue: number, fourvalue: number }[][], spinButton: Phaser.GameObjects.Image) {
-            let winPositions = this.checkWin(outcome);
-            if (winPositions.length > 0) {
-                this.finalwin = 0
-                let lineWins = this.calculateLineWins(winPositions);
-                let totalWin = lineWins.reduce((a, b) => a + b, 0);
-                this.playerCredits += totalWin
-                this.finalwin += totalWin
-                this.creditText.setText(`Credits: ${this.playerCredits}`);
-                this.winText.setText(`Last Win: ${this.finalwin}`);
-                this.showWinText(totalWin);
-                this.time.delayedCall(500, () => {
-                    winPositions.forEach(winLine => {
-                        this.drawLine(winLine);
-                    })
-                })
-            }
-            
-        }
-
-
         showWinText(totalWin: number) {
-            let winText = this.add.text(this.cameras.main.width / 2, this.cameras.main.height - 50, '', { font: '40px Arial', color: '#ff0000' });
-            winText.setOrigin(0.5);
-            winText.setAlpha(0);
+            let winText = this.add.text(this.cameras.main.width / 2, this.cameras.main.height - 50, '', { font: '40px Arial', color: '#ff0000' })
+            winText.setOrigin(0.5)
+            winText.setAlpha(0)
     
-            let text = totalWin > 400 ? `BIG WIN: ${totalWin}` : `Win: ${totalWin}`;
-            winText.setText(text);
+            let text = totalWin > 400 ? `BIG WIN: ${totalWin}` : `Win: ${totalWin}`
+            winText.setText(text)
             
     
-            let repeatTimes = totalWin > 400 ? 2 : 3;
+            let repeatTimes = totalWin > 400 ? 2 : 3
             this.tweens.add({
                 targets: winText,
                 alpha: 1,
@@ -257,12 +276,12 @@ class MainScene extends Phaser.Scene {
                 yoyo: true,
                 repeat: repeatTimes,
                 onComplete: () => winText.destroy()
-            });
+            })
         }  
     
     drawLine(winPositions: [number, number][]) {
 
-        this.graphics.lineStyle(5, 0xff0000)
+        this.winlines.lineStyle(5, 0xff0000)
         const offsetX = -37
         const offsetY = -30
         for (let i = 0; i < winPositions.length; i++) {
@@ -275,12 +294,12 @@ class MainScene extends Phaser.Scene {
             let symbolCenterY = reel.y + symbol.y + symbol.displayHeight / 2 + offsetY
 
             if (i === 0) {
-                this.graphics.moveTo(symbolCenterX, symbolCenterY)
+                this.winlines.moveTo(symbolCenterX, symbolCenterY)
             } else {
-                this.graphics.lineTo(symbolCenterX, symbolCenterY)
+                this.winlines.lineTo(symbolCenterX, symbolCenterY)
             }
         }
-        this.graphics.strokePath()
+        this.winlines.strokePath()
     }
 
     update() {
@@ -295,36 +314,7 @@ class MainScene extends Phaser.Scene {
             }
         }
     }
-    checkWin(outcome: { key: string, threevalue: number, fourvalue: number}[][]): [number, number][][] {
-        if (!outcome || !Array.isArray(outcome) || !outcome[0] || !Array.isArray(outcome[0])) {
-            console.error('Invalid outcome:', outcome);
-            return [];
-        }
-    
-        let winPositions: [number, number][][] = [];
-        let checkSymbol = (symbolKey: string, symbol: { key: string, threevalue: number, fourvalue: number }) => 
-            symbol.key === symbolKey || symbol.key === 'wild';
-    
-        for (let i = 0; i < outcome[0].length; i++) {
-            for (let j = 0; j < outcome[1].length; j++) {
-                if (checkSymbol(outcome[0][i].key, outcome[1][j])) {
-                    for (let k = 0; k < outcome[2].length; k++) {
-                        if (checkSymbol(outcome[0][i].key, outcome[2][k])) {
-                            // 3 symbols win
-                            winPositions.push([[0, i], [1, j], [2, k]]);
-                            for (let l = 0; l < outcome[3].length; l++) {
-                                // 4 symbols win
-                                if (checkSymbol(outcome[0][i].key, outcome[3][l])) {
-                                    winPositions.push([[0, i], [1, j], [2, k], [3, l]]);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return winPositions;
-    }
+   
     
     
     

@@ -1,10 +1,10 @@
-import Phaser from "phaser";
+import Phaser from "phaser"
 
 export class ReelSymbol extends Phaser.GameObjects.Image {
     public threevalue: number
     public fourvalue: number
     public key: string
-    private box: Phaser.GameObjects.Graphics | null = null;
+
 
     
     constructor(scene: Phaser.Scene, x: number, y: number, key: string, threevalue: number,fourvalue: number) {

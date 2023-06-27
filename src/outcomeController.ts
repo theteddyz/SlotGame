@@ -27,7 +27,7 @@ export class outcomeController {
             outcome.push(reelOutcome)
         }
     
-        console.log("Generated outcome: ", outcome);
+        console.log("Generated outcome: ", outcome)
         return outcome
     }
     

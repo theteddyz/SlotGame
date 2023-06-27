@@ -1,6 +1,6 @@
-import Phaser from "phaser";
-import { ReelSymbol } from './ReelSymbol';
-import { symbolData } from './SymbolData'; // Add this import
+import Phaser from "phaser"
+import { ReelSymbol } from './ReelSymbol'
+import { symbolData } from './SymbolData' 
 
 
 export class Reel extends Phaser.GameObjects.Container {
@@ -23,14 +23,12 @@ export class Reel extends Phaser.GameObjects.Container {
             this.symbols.push(symbol)
             this.add(symbol)
 
-            // Store the initial positions of the symbols
             this.initialSymbolPositions.push({ x: symbol.x, y: symbol.y })
         }
     }
     
     
         resetSymbols() {
-            // Reset the symbols to their initial positions
             for (let i = 0; i < this.symbols.length; i++) {
                 let symbol = this.symbols[i]
                 let initialPosition = this.initialSymbolPositions[i]
@@ -63,22 +61,22 @@ export class Reel extends Phaser.GameObjects.Container {
         
     
         spin(stopDelay: number = 0): Promise<void> {
-            this.speed = 20;
-            this.isSpinning = true;
+            this.speed = 20
+            this.isSpinning = true
         
             return new Promise<void>((resolve) => {
-                this.spinTime = 6 + stopDelay;
+                this.spinTime = 6 + stopDelay
                 const spinInterval = setInterval(() => {
-                    this.spinTime -= 1;
+                    this.spinTime -= 1
                     if (this.spinTime <= 0) {
-                        this.speed = 0;
-                        this.isSpinning = false;
+                        this.speed = 0
+                        this.isSpinning = false
                         this.setToDefaultPosition()
-                        clearInterval(spinInterval);
-                        resolve();
+                        clearInterval(spinInterval)
+                        resolve()
                     }
-                }, 2000); 
-            });
+                }, 2000) 
+            })
         }
         
         
@@ -92,7 +90,7 @@ export class Reel extends Phaser.GameObjects.Container {
                 const { x, y } = this.initialSymbolPositions[index]
                 symbol.x = x
                 symbol.y = y
-            });
+            })
 
         }
     
